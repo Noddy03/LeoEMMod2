@@ -11,7 +11,7 @@ DURATION_SEC = 30  # Durata totale raccolta in secondi (0 = infinito fino a Ctrl
 OUTPUT_TXT = "leo_latency_log.txt"
 
 REPO_DIR = os.path.expanduser(
-    "~/home/noddy/LeoEMMOD2"
+    "/home/noddy/LeoEMMOD2"
 )  # Cartella del tuo repo Git locale (se il .txt sta lì)
 AUTO_GIT_PUSH = True  # Metti False se vuoi solo generare il .txt in locale
 
