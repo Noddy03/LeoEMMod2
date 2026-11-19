@@ -7,7 +7,7 @@ import time
 # --- CONFIGURAZIONE ---
 TARGET_IP = "192.168.64.7"  # Sostituisci con l'IP dell'host di destinazione in Mininet
 INTERVAL_SEC = 1.0  # Ogni quanti secondi fare una misura
-DURATION_SEC = 30  # Durata totale raccolta in secondi (0 = infinito fino a Ctrl+C)
+DURATION_SEC = 0  # Durata totale raccolta in secondi (0 = infinito fino a Ctrl+C)
 OUTPUT_TXT = "leo_latency_log.txt"
 
 REPO_DIR = os.path.expanduser(
