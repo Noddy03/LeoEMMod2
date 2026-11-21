@@ -213,7 +213,13 @@ def initialize_link(net):
     net: the mininet object
 '''
 def update_precomputed_link(link_info_all_cycles, net):
-    print("cycle numbers:",len(link_info_all_cycles))
+    sim_log = open("log_outputs.txt", "a")
+    def out(*args):
+        text = " ".join(str(a) for a in args)
+        print(text)
+        sim_log.write(text + "\n")
+        sim_log.flush()
+    out("cycle numbers:",len(link_info_all_cycles))
     global current_routing_path, last_routing_path, last_node_delay, current_node_delay
 
     # precompute the amount of delay for each prediction
@@ -259,28 +265,29 @@ def update_precomputed_link(link_info_all_cycles, net):
     for index in range(len(link_info_all_cycles)):
         tstart = time.time()
         cycle = link_info_all_cycles[index][0]
-        print("cycle:", index)
+        out("cycle:", index)
         if index + 1!= cycle:
-            print("not reading the correct cycle!")
+            out("not reading the correct cycle!")
+            sim_log.close()
             return
 
         # help trigger ealier handover reports for cycles later; will do for the next 3 cycles
         # for the next cycle
         if index + 1 < len(link_info_all_cycles) and -1 < prediction_delays[index + 1] < 0 and handovers[index + 1] == 1:
             subprocess.run(["echo", "earlier handover report triggered"], stdout=kernel_output)
-            print("handover report for cycle %s with %s delay" % (str(index + 1), str(prediction_delays[index + 1])))
+            out("handover report for cycle %s with %s delay" % (str(index + 1), str(prediction_delays[index + 1])))
             report_handover_status_asynchronously(1, 1 - -prediction_delays[index + 1])
             
         # for the cycle after the next
         if index + 2 < len(link_info_all_cycles) and -2 < prediction_delays[index + 2] < -1 and handovers[index + 2] == 1:
             subprocess.run(["echo", "earlier handover report triggered"], stdout=kernel_output)
-            print("handover report for cycle %s with %s delay" % (str(index + 2), str(prediction_delays[index + 2])))
+            out("handover report for cycle %s with %s delay" % (str(index + 2), str(prediction_delays[index + 2])))
             report_handover_status_asynchronously(1, 2 - -prediction_delays[index + 2])
 
         # for the cycle after the next
         if index + 3 < len(link_info_all_cycles) and -3 < prediction_delays[index + 3] < -2 and handovers[index + 3] == 1:
             subprocess.run(["echo", "earlier handover report triggered"], stdout=kernel_output)
-            print("handover report for cycle %s with %s delay" % (str(index + 3), str(prediction_delays[index + 3])))
+            out("handover report for cycle %s with %s delay" % (str(index + 3), str(prediction_delays[index + 3])))
             report_handover_status_asynchronously(1, 3 - -prediction_delays[index + 3])
 
         # if at this cycle there is no routing path, turn down s0<->s1 link to
@@ -289,7 +296,7 @@ def update_precomputed_link(link_info_all_cycles, net):
             current_routing_path = ["NULL"]
             current_node_delay = ["NULL"]
             net.configLinkStatus('s0', 's1', 'down')
-            print("turn off the link due to lack of route")
+            out("turn off the link due to lack of route")
             time.sleep(frame_length)
             continue
         
@@ -345,13 +352,13 @@ def update_precomputed_link(link_info_all_cycles, net):
                 
         # since there can be multiple intermediate nodes experiencing handovers, using multithreading to simulate those
         # handovers in parallel (more authentic)
-        print("cycle %s: intermediate handover nodes:" % index, handover_nodes_group1 + handover_nodes_group2)
-        print("cycle %s: end handover nodes:" % index, end_handover_nodes)
+        out("cycle %s: intermediate handover nodes:" % index, handover_nodes_group1 + handover_nodes_group2)
+        out("cycle %s: end handover nodes:" % index, end_handover_nodes)
 
         # send delayed handover report here
         if handover_nodes_group1 or handover_nodes_group2 or end_handover_nodes:
             if prediction_delays[index] >= 0:
-                print("handover report for cycle %s with %s delay" % (str(index), str(prediction_delays[index])))
+                out("handover report for cycle %s with %s delay" % (str(index), str(prediction_delays[index])))
                 report_handover_status_asynchronously(1, prediction_delays[index])
         with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor: 
             executor.map(simulate_link_break, handover_nodes_group1)
@@ -386,6 +393,7 @@ def update_precomputed_link(link_info_all_cycles, net):
         if sleep_duration < 0:
             sleep_duration = 0
         time.sleep(sleep_duration)
+    sim_log.close()
 
 topos = { 'mytopo': ( lambda: MyTopo() ) }
 
