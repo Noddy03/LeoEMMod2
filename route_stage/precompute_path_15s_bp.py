@@ -71,9 +71,12 @@ counter2 = 0
 # previously used gateway satellites
 test_1_gateway_pervious = [math.inf, -1]
 test_2_gateway_pervious = [math.inf, -1]
+prew_g1=-1
+prew_g2=-1
 # what satellites are currently covering user 1 and user 2
 satellites_in_view1 = []
 satellites_in_view2 = []
+
 
 L = getCoverageLimitL(elevation, depression, 550 * 10 ** 3)
 # start generating the desired path between two test locations
@@ -207,6 +210,19 @@ for current_cycle in range(1, cycles + 1):
         delay_sum = sum(node_delay)
         node_num += 2
         node_nums.append(node_num)
+        is_handover = (test_1_gateway[1] != prew_g1) or (test_2_gateway[1] != prew_g2)
+        gw1_id = test_1_gateway[1]
+        gw2_id = test_2_gateway[1]
+        gw1_cbf = (cbf_positions[gw1_id][0][0][current_cycle - 1], cbf_positions[gw1_id][0][1][current_cycle - 1], cbf_positions[gw1_id][0][2][current_cycle - 1])
+        gw2_cbf = (cbf_positions[gw2_id][0][0][current_cycle - 1], cbf_positions[gw2_id][0][1][current_cycle - 1], cbf_positions[gw2_id][0][2][current_cycle - 1])
+        # Calcola l'elevazione su entrambi i lati e prendi il valore peggiore (minimo)
+        el1 = elangle(test_1_cbf, gw1_cbf)
+        el2 = elangle(test_2_cbf, gw2_cbf)
+        min_el = min(el1, el2)
+        angle_norm = normalization(min_el, elevation)
+        bw_mbps, jitter_ms, loss_pct = channel_paragrams(angle_norm, is_handover)
+        prew_g1 = gw1_id
+        prew_g2 = gw2_id
         output_file.write(str(current_cycle))
         output_file.write("$")
         output_file.write(str(routing_path))
@@ -216,9 +232,12 @@ for current_cycle in range(1, cycles + 1):
         output_file.write(str(node_delay))
         output_file.write("$")
         output_file.write(str(delay_sum))
+        output_file.write(f"${round(min_el, 2)}${bw_mbps}${jitter_ms}${loss_pct}${int(is_handover)}")
         output_file.write("\n")
     except nx.exception.NetworkXNoPath:
         no_path_cycle_num += 1
+        prew_g1=-1
+        prew_g2=-1
         output_file.write(str(current_cycle))
         output_file.write("$")
         output_file.write("NULL")
