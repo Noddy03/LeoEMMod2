@@ -316,10 +316,16 @@ def update_precomputed_link(link_info_all_cycles, net):
         node_num = link_info_all_cycles[index][2]
         node_delay = link_info_all_cycles[index][3]
         delay_sum = link_info_all_cycles[index][4]
+        min_el = link_info_all_cycles[index][5]
         bw_mbps = link_info_all_cycles[index][6]
         jitter_ms = link_info_all_cycles[index][7]
         loss_pct = link_info_all_cycles[index][8]
+        is_handover = link_info_all_cycles[index][9]
         net.configLinkStatus('s0', 's1', 'up')
+        out(
+            f"cycle {index}: el={min_el} deg, bw={bw_mbps} Mbps, "
+            f"jitter={jitter_ms} ms, loss={loss_pct}%, ho={is_handover}"
+        )
 
         # update the topology (i.e. routing path) accordingly
         last_routing_path = current_routing_path
