@@ -1,6 +1,16 @@
 import networkx as nx
 import math
 
+band_min=25.0
+band_max=100.0
+jitter_max=4.0
+jitter_min=1.0
+loss_max=1.5
+loss_min=0.05
+
+def clamp(val,min_val,max_val):
+    return max(min_val, min(max_val,val))
+    
 def degToRad(deg):
     pi = math.pi
     return deg * pi / 180
@@ -48,7 +58,7 @@ def checkSatCoverGroundStation(sat_position_cbf, gs_position_cbf, L):
     compute (electromagnetic) wave's propogation latency between two points in vacuum
 '''
 def computeLatency(point_a_cbf, point_b_cbf):
-    dist = math.sqrt((point_a_cbf[0] - point_b_cbf[0])**2 + (point_a_cbf[1] - point_b_cbf[1])**2 + (point_a_cbf[1] - point_b_cbf[1])**2)
+    dist = math.sqrt((point_a_cbf[0] - point_b_cbf[0])**2 + (point_a_cbf[1] - point_b_cbf[1])**2 + (point_a_cbf[2] - point_b_cbf[2])**2)
     return dist / (3 * 10**8)
 
 '''
@@ -58,3 +68,34 @@ def pathExists(gw1, gw2, G):
     if gw1 == -1 or gw2 == -1:
         return False
     return nx.has_path(G, gw1, gw2)
+'''
+    compute the elevation angles
+'''
+def elangle(gs_cbf,sat_cbf):
+    dx=sat_cbf[0]-gs_cbf[0]
+    dy=sat_cbf[1]- gs_cbf[1]
+    dz=sat_cbf[2]-gs_cbf[2]
+    dist=math.sqrt(math.pow(dx,2)+math.pow(dy,2)+math.pow(dz,2))
+    ground_dist=math.sqrt(math.pow(gs_cbf[0],2)+math.pow(gs_cbf[1],2)+math.pow(gs_cbf[2],2))
+    sen_teta=(dx*gs_cbf[0]+ dy*gs_cbf[1]+dz*gs_cbf[2])/(dist*ground_dist)
+    angle_deg=math.asin(clamp(sen_teta,-1.0,1.0))*(180/math.pi)
+    return angle_deg
+def normalization(angle_deg,angle_min):
+    if angle_min==90.0 : angle_min=0.5
+    angle_max=1.0
+    angle_norm=clamp((angle_deg-angle_min)/(90-angle_min),0,1)
+    return angle_norm
+def channel_paragrams(angle_norm,is_handover=False):
+    btw_Mbps=band_min+((band_max-band_min)*angle_norm)
+    jitter_miss=jitter_max+((jitter_min-jitter_max)*angle_norm)
+    loss_pct=loss_max+((loss_min-loss_max)*angle_norm)
+    if is_handover:
+        jitter_miss+=3.0
+        loss_pct=min(100.0, loss_pct+5.0)
+    return round(btw_Mbps, 2), round(jitter_miss, 2), round(loss_pct, 3)
+
+
+
+
+
+
