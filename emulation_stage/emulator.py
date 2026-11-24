@@ -182,14 +182,24 @@ class MyTopo( Topo ):
     bw: the bandwidth value in Mbps (int)
     delay: the one-way delay value (e.x. '5ms'; string)
 '''
-def set_link_properties(net, node1, node2, bw, delay, max_queue_size=switch_queue_size):
+def set_link_properties(net, node1, node2, bw, delay, max_queue_size=switch_queue_size, jitter=None, loss=None):
     hop_a = net.getNodeByName(node1)
     hop_b = net.getNodeByName(node2)
     interfaces = hop_a.connectionsTo(hop_b)
     src_intf = interfaces[0][0]
     dst_intf = interfaces[0][1]
-    src_intf.config(bw = bw, delay = delay, max_queue_size=switch_queue_size, smooth_change = True)
-    dst_intf.config(bw = bw, delay = delay, max_queue_size=switch_queue_size, smooth_change = True)
+    params = {
+            'bw' : bw,
+            'delay' : delay,
+            'max_queue_size' : max_queue_size,
+            'smooth_change ' : True
+            }
+    if jitter is not None and jitter > 0:
+        params['jitter'] = f"{jitter}ms"
+    if loss is not None and loss > 0:
+        params['loss'] = loss
+    src_intf.config(**params)
+    dst_intf.config(**params)
 
 
 def initialize_link(net):
@@ -265,6 +275,7 @@ def update_precomputed_link(link_info_all_cycles, net):
     for index in range(len(link_info_all_cycles)):
         tstart = time.time()
         cycle = link_info_all_cycles[index][0]
+        
         out("cycle:", index)
         if index + 1!= cycle:
             out("not reading the correct cycle!")
@@ -305,6 +316,9 @@ def update_precomputed_link(link_info_all_cycles, net):
         node_num = link_info_all_cycles[index][2]
         node_delay = link_info_all_cycles[index][3]
         delay_sum = link_info_all_cycles[index][4]
+        bw_mbps = link_info_all_cycles[index][6]
+        jitter_ms = link_info_all_cycles[index][7]
+        loss_pct = link_info_all_cycles[index][8]
         net.configLinkStatus('s0', 's1', 'up')
 
         # update the topology (i.e. routing path) accordingly
@@ -367,21 +381,31 @@ def update_precomputed_link(link_info_all_cycles, net):
         with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor: 
             executor.map(simulate_dish_gateway_sat_handover, end_handover_nodes)
 
-        # "handoff" process almost done: update the test locations' gateways (i.e. the delay and bandwidth between the ground and the gateway)
+         # Dividi jitter e loss sui due tratti uplink/downlink dish <-> gateway
+        half_jitter = round(jitter_ms / 2.0, 3)
+        half_loss = round(loss_pct / 2.0, 4)
+
         dish_gateway_link_weight1 = node_delay[0]
-        set_link_properties(net, "s0", "s1", 150, '%ss' % dish_gateway_link_weight1, max_queue_size=switch_queue_size)
+        set_link_properties(
+            net, "s0", "s1", bw_mbps, '%ss' % dish_gateway_link_weight1,
+            max_queue_size=switch_queue_size, jitter=half_jitter, loss=half_loss
+        )
         dish_gateway_link_weight2 = node_delay[-1]
-        set_link_properties(net, 's%s' % (intermediate_hop_num - 2), 's%s' % (intermediate_hop_num - 1), 150, '%ss' % dish_gateway_link_weight2, max_queue_size=switch_queue_size)
-        # -------------------------------------------------------------------------------------
+        set_link_properties(
+            net, 's%s' % (intermediate_hop_num - 2), 's%s' % (intermediate_hop_num - 1),
+            bw_mbps, '%ss' % dish_gateway_link_weight2,
+            max_queue_size=switch_queue_size, jitter=half_jitter, loss=half_loss
+        )
 
         # -------------------------ROUTING PATH UPDATE PHASE-------------------------------------------
         # update each intermediate link's delay and bandwidth on the new path 
         # (not including links between entry satellite and user dish)
         for current_hop_idx in range(0, len(current_routing_path) - 3):
-            # method from https://mailman.stanford.edu/pipermail/mininet-discuss/2013-December/003667.html
             weight = node_delay[current_hop_idx + 1]
-            set_link_properties(net, "s%s" % (current_hop_idx + 1), "s%s" % str(current_hop_idx + 2), bent_pipe_link_bandwidth, '%ss' % weight, max_queue_size=switch_queue_size)
-
+            set_link_properties(
+                net, "s%s" % (current_hop_idx + 1), "s%s" % str(current_hop_idx + 2),
+                bw_mbps, '%ss' % weight, max_queue_size=switch_queue_size
+            )
         # make sure links connecting extra dummy hops will not create burden for the new path
         for extra_hop_idx in range(len(current_routing_path) - 3, (intermediate_hop_num - 3)):
             set_link_properties(net, "s%s" % (extra_hop_idx + 1), "s%s" % str(extra_hop_idx + 2), bent_pipe_link_bandwidth, unitialized_bent_pipe_delay, max_queue_size=switch_queue_size)
@@ -422,7 +446,19 @@ def read_link_info(input_file_name):
                 intermediate_hop_num = node_num_read
             node_delay_read = literal_eval(values[3])
             delay_sum_read = literal_eval(values[4])
-            link_info_all_cycles.append([cycle_read, routing_path_read, node_num_read, node_delay_read, delay_sum_read])
+            if len(values)>= 10:
+                min_el = literal_eval(values[5])
+                bw_mbps = literal_eval(values[6])
+                jitter_ms = literal_eval(values[7])
+                loss_pct = literal_eval(values[8])
+                is_handover = literal_eval(values[9])
+            else:        
+                min_el = 90.0
+                bw_mbps = float(bent_pipe_link_bandwidth)
+                jitter_ms = 0.0
+                loss_pct = 0.0
+                is_handover = 0
+            link_info_all_cycles.append([cycle_read, routing_path_read, node_num_read, node_delay_read, delay_sum_read, min_el, bw_mbps, jitter_ms, loss_pct, is_handover])
     in_file.close()
     return link_info_all_cycles
 
